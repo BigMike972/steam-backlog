@@ -1,0 +1,8 @@
+.git
+venv
+__pycache__
+*.pyc
+steam_backlog.db*
+docs
+CLAUDE.md
+*.bak

@@ -41,7 +41,7 @@ Games need at least 50 Steam reviews to be ranked (adjustable in Settings).
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.11+ (or Docker)
 - A [Steam Web API key](https://steamcommunity.com/dev/apikey) (any domain
   name works when registering)
 - Your 17-digit Steam ID ([steamidfinder.com](https://www.steamidfinder.com))
@@ -53,24 +53,49 @@ Games need at least 50 Steam reviews to be ranked (adjustable in Settings).
 ```bash
 git clone https://github.com/BigMike972/steam-backlog.git
 cd steam-backlog
-python3 -m venv venv
-venv/bin/pip install -r requirements.txt
-venv/bin/gunicorn --workers 2 --threads 2 --bind 127.0.0.1:5002 app:app
+python3 run.py
 ```
 
-Open <http://127.0.0.1:5002>, enter your API key and Steam ID, and hit
-**Refresh**. The first refresh looks up reviews, store details and
-HowLongToBeat times one game at a time (the APIs are rate-limited), so a
-library of several hundred games takes 20–30 minutes. You can close the page
-while it runs.
+`run.py` creates a virtualenv and installs the requirements the first time
+(about a minute), then starts the app. After that it starts instantly. Open
+<http://127.0.0.1:5002>, enter your API key and Steam ID, and hit **Refresh**.
+
+- `python3 run.py --port 8080` to use another port
+- `python3 run.py --host 0.0.0.0` to reach it from other devices on your
+  network (phone, laptop) at `http://<this machine's IP>:5002`
+
+The first refresh looks up reviews, store details and HowLongToBeat times one
+game at a time (the APIs are rate-limited), so a library of several hundred
+games takes 20–30 minutes. You can close the page while it runs.
 
 Everything is stored in a single SQLite file, `steam_backlog.db`, created
 next to `app.py` on first start.
 
+> On Debian, Ubuntu or Raspberry Pi OS, if creating the virtualenv fails,
+> install venv support with `sudo apt install python3-venv`.
+
+## Docker
+
+```bash
+git clone https://github.com/BigMike972/steam-backlog.git
+cd steam-backlog
+docker compose up -d
+```
+
+(With the older standalone Compose, e.g. Debian's `docker-compose` package,
+it's `docker-compose up -d`.)
+
+Then open <http://localhost:5002>. Your settings and cached data live in the
+`steam-backlog-data` volume, so they survive rebuilds and upgrades
+(`git pull && docker compose up -d --build`). To keep it reachable from the
+host machine only, change the port mapping in `compose.yaml` to
+`"127.0.0.1:5002:5002"`.
+
 ## Running it as a service
 
-`steam-backlog.service` is a systemd unit template. Fill in your username and
-install path, then:
+`steam-backlog.service` is a systemd unit template for running it without
+Docker. Run `python3 run.py` once to set up the virtualenv, fill in your
+username and install path in the unit file, then:
 
 ```bash
 sudo cp steam-backlog.service /etc/systemd/system/

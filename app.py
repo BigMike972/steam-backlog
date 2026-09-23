@@ -1,3 +1,4 @@
+import os
 import random
 import re
 import sqlite3
@@ -11,7 +12,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 import backlog
 
-DB_PATH = Path(__file__).parent / "steam_backlog.db"
+# Next to app.py by default; the Docker image points this at a volume.
+DB_PATH = Path(os.environ.get("STEAM_BACKLOG_DB") or Path(__file__).parent / "steam_backlog.db")
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
 app = Flask(__name__)
@@ -36,6 +38,21 @@ def close_db(exception=None):
 
 def init_db():
     """Create tables if they don't exist. Safe to run repeatedly."""
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    # Every gunicorn worker runs this at startup. On a brand-new database
+    # two of them can collide switching it to WAL, which fails straight away
+    # with "database is locked" rather than waiting -- so retry briefly.
+    for attempt in range(20):
+        try:
+            _init_db()
+            return
+        except sqlite3.OperationalError as e:
+            if "locked" not in str(e) or attempt == 19:
+                raise
+            time.sleep(0.25)
+
+
+def _init_db():
     db = sqlite3.connect(DB_PATH, timeout=30)
     # WAL so page loads aren't blocked while a refresh is writing.
     db.execute("PRAGMA journal_mode=WAL")

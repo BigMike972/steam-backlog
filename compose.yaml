@@ -1,0 +1,12 @@
+services:
+  steam-backlog:
+    build: .
+    ports:
+      # Use "127.0.0.1:5002:5002" to keep it reachable from this machine only.
+      - "5002:5002"
+    volumes:
+      - steam-backlog-data:/data
+    restart: unless-stopped
+
+volumes:
+  steam-backlog-data:
