@@ -1,0 +1,29 @@
+# systemd unit for running Steam Backlog under gunicorn.
+#
+# Replace YOUR_USER and /path/to/steam-backlog with your username and the
+# folder you cloned into, then:
+#
+#   sudo cp steam-backlog.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now steam-backlog
+#   journalctl -u steam-backlog -f      # tail the logs
+
+[Unit]
+Description=Steam Backlog (gunicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=YOUR_USER
+WorkingDirectory=/path/to/steam-backlog
+Environment="PATH=/path/to/steam-backlog/venv/bin"
+# --threads so the background refresh thread and page loads don't compete
+# for a single sync worker. Use 0.0.0.0 instead of 127.0.0.1 to reach it
+# from other machines without a reverse proxy.
+ExecStart=/path/to/steam-backlog/venv/bin/gunicorn --workers 2 --threads 2 --bind 127.0.0.1:5002 app:app
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

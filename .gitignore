@@ -1,0 +1,7 @@
+venv/
+steam_backlog.db*
+__pycache__/
+*.pyc
+*.bak
+# Local notes for Claude Code about this particular Pi deployment
+CLAUDE.md

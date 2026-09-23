@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block head %}
+{% if status.running %}<meta http-equiv="refresh" content="4">{% endif %}
+{% endblock %}
+
+{% block content %}
+<header class="page-header">
+<pre class="banner" aria-hidden="true">
+██████╗  █████╗  ██████╗██╗  ██╗██╗      ██████╗  ██████╗
+██╔══██╗██╔══██╗██╔════╝██║ ██╔╝██║     ██╔═══██╗██╔════╝
+██████╔╝███████║██║     █████╔╝ ██║     ██║   ██║██║  ███╗
+██╔══██╗██╔══██║██║     ██╔═██╗ ██║     ██║   ██║██║   ██║
+██████╔╝██║  ██║╚██████╗██║  ██╗███████╗╚██████╔╝╚██████╔╝
+╚═════╝ ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝ ╚═════╝  ╚═════╝</pre>
+  <h1 class="sr-only">Steam Backlog</h1>
+  <p class="eyebrow">&gt; steam library // unplayed queue<span class="cursor">_</span></p>
+  {% if total_games %}
+  <p class="stats-line">
+    <span class="stat"><b>{{ total_games }}</b> owned</span>
+    <span class="stat"><b>{{ unplayed }}</b> unplayed</span>
+    {% if status.finished %}<span class="stat">synced {{ status.finished }}</span>{% endif %}
+  </p>
+  {% endif %}
+</header>
+
+{% if error %}
+<p class="notice notice-error">{{ error }}</p>
+{% endif %}
+
+{% if status.running %}
+<section class="notice notice-progress">
+  <p><strong class="blink">LOADING&hellip;</strong> {{ status.stage }}
+    {% if status.total %}<span class="mono">{{ status.done }}/{{ status.total }}</span>{% endif %}
+  </p>
+  {% if status.total %}
+  {% set filled = (24 * status.done / status.total)|int %}
+  <pre class="ascii-bar">[{{ '█' * filled }}{{ '░' * (24 - filled) }}] {{ (100 * status.done / status.total)|int }}%</pre>
+  {% endif %}
+  {% if status.message %}<p class="progress-item">{{ status.message }}</p>{% endif %}
+  <p class="progress-hint">You can close this page &mdash; the refresh keeps going on the Pi.</p>
+</section>
+{% elif status.state == 'error' %}
+<p class="notice notice-error">Last refresh failed: {{ status.error }}</p>
+{% endif %}
+
+{% if not has_credentials %}
+<section class="card setup-card">
+  <h2>&gt; New game</h2>
+  <p>You need two things:</p>
+  <ul>
+    <li>A <strong>Steam Web API key</strong> &mdash; <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener">steamcommunity.com/dev/apikey</a> (any domain name works, e.g. <span class="mono">pi.apps</span>)</li>
+    <li>Your <strong>17-digit Steam ID</strong> &mdash; <a href="https://www.steamidfinder.com" target="_blank" rel="noopener">steamidfinder.com</a></li>
+  </ul>
+  <p class="hint">Your Steam profile and &ldquo;Game details&rdquo; must be set to Public in Steam&rsquo;s privacy settings.</p>
+  <form class="stack-form" action="{{ url_for('save_settings') }}" method="post">
+    <label>Steam API key <input type="text" name="api_key" autocomplete="off" required></label>
+    <label>Steam ID <input type="text" name="steam_id" inputmode="numeric" value="{{ steam_id }}" required></label>
+    <button type="submit">Save</button>
+  </form>
+</section>
+{% else %}
+
+<nav class="length-toggle" aria-label="Session length">
+  {% for key, (label, lo, hi) in lengths.items() %}
+  <a href="{{ url_for('index', top=top_n, length=key) }}" class="{{ 'active' if key == length }}"
+     {% if key == length %}aria-current="page"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+
+<div class="toolbar">
+  <form class="toolbar-form" action="{{ url_for('index') }}" method="get">
+    <label>Show top
+      <select name="top" onchange="this.form.submit()">
+        {% for n in [10, 25, 50, 100] %}
+        <option value="{{ n }}" {{ 'selected' if n == top_n }}>{{ n }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <input type="hidden" name="length" value="{{ length }}">
+    <button type="submit" name="pick" value="1" class="primary-btn" {{ 'disabled' if not top }}>&#9654; Pick one for me</button>
+  </form>
+  <form action="{{ url_for('refresh') }}" method="post">
+    <button type="submit" class="secondary-btn" {{ 'disabled' if status.running }}>&#10227; Refresh</button>
+  </form>
+</div>
+
+{% if pick %}
+<section class="pick-card">
+  {% if pick.header_image %}
+  <a class="pick-art" href="https://store.steampowered.com/app/{{ pick.appid }}" target="_blank" rel="noopener">
+    <img src="{{ pick.header_image }}" alt="" loading="lazy" onerror="this.parentElement.remove()">
+  </a>
+  {% endif %}
+  <div class="pick-body">
+  <p class="eyebrow">&#9733; player 1 // next quest &#9733;</p>
+  <h2><a href="https://store.steampowered.com/app/{{ pick.appid }}" target="_blank" rel="noopener">{{ pick.name }}</a></h2>
+  <p class="pick-meta">
+    <span class="{{ pick.pct_class }}">{{ pick.pct }}%</span> {{ pick.label }}
+    &middot; {{ '%.1f h'|format(pick.hours) if pick.hours else 'length unknown' }}
+    {% if pick.played_minutes %}&middot; you played {{ pick.played_minutes }}m{% endif %}
+  </p>
+  <div class="pick-actions">
+    <a class="primary-btn" href="steam://install/{{ pick.appid }}">Install in Steam</a>
+    <a class="secondary-btn" href="{{ url_for('index', top=top_n, length=length, pick=1) }}">Pick again</a>
+  </div>
+  </div>
+</section>
+{% endif %}
+
+{% if top %}
+<table class="rank-table">
+  <thead>
+    <tr>
+      <th class="col-rank">#</th>
+      <th class="col-art"></th>
+      <th class="col-name">Game</th>
+      <th class="col-reviews">Reviews</th>
+      <th class="col-hours">HLTB</th>
+      <th class="col-score">Score</th>
+      <th class="col-action"></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for game in top %}
+    <tr class="{{ 'is-pick' if pick and pick.appid == game.appid }} {{ 'podium-' ~ loop.index if loop.index <= 3 }}">
+      <td class="col-rank">{{ loop.index }}</td>
+      <td class="col-art">
+        {% if game.header_image %}<img src="{{ game.header_image }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}
+      </td>
+      <td class="col-name">
+        <a href="https://store.steampowered.com/app/{{ game.appid }}" target="_blank" rel="noopener">{{ game.name }}</a>
+        {% if game.played_minutes %}<span class="played-tag" title="You've played {{ game.played_minutes }} minutes">{{ game.played_minutes }}m played</span>{% endif %}
+      </td>
+      <td class="col-reviews">
+        <span class="{{ game.pct_class }}">{{ game.pct }}%</span>
+        <span class="review-label">{{ game.label }}</span>
+      </td>
+      <td class="col-hours">{{ '%.1fh'|format(game.hours) if game.hours else '??' }}</td>
+      <td class="col-score">{{ '%.1f'|format(game.score) }}</td>
+      <td class="col-action">
+        <form action="{{ url_for('hide_game', appid=game.appid) }}" method="post">
+          <input type="hidden" name="top" value="{{ top_n }}">
+          <input type="hidden" name="length" value="{{ length }}">
+          <button type="submit" class="ghost-btn" title="Hide {{ game.name }}" aria-label="Hide {{ game.name }}">&times;</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p class="footnote">
+  Showing {{ top|length }} of {{ ranked_count }} ranked games.
+  {% if length == 'any' %}
+  Score = review% &divide; (1 + ln(hours + 1)), with anything under 1h counted as 1h &mdash; short, great games float up.
+  {% else %}
+  Ranked by review % within {{ lengths[length][0] }}. Games with unknown length only appear under &ldquo;Any length&rdquo;.
+  {% endif %}
+  &times; hides a game for good (undo below).
+</p>
+{% elif not status.running %}
+<section class="empty-state">
+  {% if total_games and length != 'any' %}
+  <p>Nothing in the <strong>{{ lengths[length][0] }}</strong> range yet. Try another length, or refresh to pick up new games.</p>
+  {% elif total_games %}
+  <p>No ranked games yet. Hit <strong>Refresh</strong>, or loosen the filters / minimum review count below.</p>
+  {% else %}
+  <p>Hit <strong>Refresh</strong> to pull in your library. The first run takes a few minutes (it looks up reviews and playtimes one game at a time); after that it only fetches what&rsquo;s new.</p>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2><span class="bracket">[</span> Category filters <span class="bracket">]</span></h2>
+  <p class="hint">Leave out any game whose Steam categories contain one of these words (partial match, e.g. &ldquo;VR&rdquo; catches &ldquo;VR Only&rdquo;).</p>
+  {% if filters %}
+  <ul class="chip-list">
+    {% for f in filters %}
+    <li class="chip">
+      {{ f.keyword }}
+      <form action="{{ url_for('delete_filter', filter_id=f.id) }}" method="post">
+        <button type="submit" class="ghost-btn" aria-label="Remove filter {{ f.keyword }}">&times;</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  <form class="inline-form" action="{{ url_for('add_filter') }}" method="post">
+    <input type="text" name="keyword" list="filter-suggestions" placeholder="e.g. VR" required>
+    <datalist id="filter-suggestions">
+      <option value="VR"><option value="VR Only"><option value="Online PvP">
+      <option value="Online Co-op"><option value="MMO"><option value="Includes level editor">
+    </datalist>
+    <button type="submit" class="secondary-btn">Add filter</button>
+  </form>
+</section>
+
+{% if hidden %}
+<section class="panel">
+  <h2><span class="bracket">[</span> Hidden games <span class="bracket">]</span> <span class="count">{{ hidden|length }}</span></h2>
+  <ul class="hidden-list">
+    {% for h in hidden %}
+    <li>
+      <span>{{ h.name }}</span>
+      <form action="{{ url_for('unhide_game', appid=h.appid) }}" method="post">
+        <button type="submit" class="link-btn">Unhide</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<details class="panel settings-panel">
+  <summary><h2><span class="bracket">[</span> Settings <span class="bracket">]</span></h2></summary>
+  <form class="stack-form" action="{{ url_for('save_settings') }}" method="post">
+    <label>Steam ID <input type="text" name="steam_id" inputmode="numeric" value="{{ steam_id }}"></label>
+    <label>Steam API key <input type="text" name="api_key" autocomplete="off" placeholder="saved ({{ api_key_hint }}) &mdash; leave blank to keep"></label>
+    <label>Minimum review count <input type="number" name="min_reviews" min="0" step="1" value="{{ min_reviews }}"></label>
+    <p class="hint">Games with fewer Steam reviews than this are skipped. Lowering it takes effect on the next refresh.</p>
+    <label>Count as unplayed if played less than (minutes) <input type="number" name="played_minutes" min="1" step="1" value="{{ played_minutes }}"></label>
+    <p class="hint">Brings back games you launched once and bounced off. Set to 1 for &ldquo;never launched&rdquo; only. Raising it takes effect on the next refresh.</p>
+    <button type="submit">Save settings</button>
+  </form>
+  <form class="full-refresh" action="{{ url_for('refresh') }}" method="post"
+        onsubmit="return confirm('Re-fetch every review score and playtime from scratch? This takes several minutes.');">
+    <input type="hidden" name="full" value="1">
+    <button type="submit" class="secondary-btn" {{ 'disabled' if status.running }}>Full refresh</button>
+    <span class="hint">Normal refresh only fetches data for new games. Use this if review scores or playtimes look stale.</span>
+  </form>
+</details>
+{% endif %}
+
+<pre class="footer-art" aria-hidden="true">-=[ GAME OVER? INSERT COIN TO CONTINUE ]=-</pre>
+{% endblock %}
