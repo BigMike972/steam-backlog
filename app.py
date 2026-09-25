@@ -138,7 +138,8 @@ def index():
     length = request.args.get("length")
     if length not in backlog.LENGTHS:
         length = "any"
-    ranked = backlog.ranked_games(db, length)
+    coop = request.args.get("coop") == "1"
+    ranked = backlog.ranked_games(db, length, coop)
     top = ranked[:top_n]
 
     # "Pick one for me": weighted by priority score, so better picks come
@@ -163,6 +164,7 @@ def index():
         top_n=top_n,
         length=length,
         lengths=backlog.LENGTHS,
+        coop=coop,
         played_minutes=played_minutes,
         ranked_count=len(ranked),
         pick=pick,
@@ -225,7 +227,12 @@ def hide_game(appid):
         )
         db.commit()
     return redirect(
-        url_for("index", top=request.form.get("top"), length=request.form.get("length"))
+        url_for(
+            "index",
+            top=request.form.get("top"),
+            length=request.form.get("length"),
+            coop=request.form.get("coop") or None,
+        )
     )
 
 

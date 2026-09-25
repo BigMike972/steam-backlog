@@ -208,6 +208,14 @@ input:focus, select:focus, input:hover, select:hover {
   box-shadow: 0 0 14px rgba(157, 255, 92, 0.35);
 }
 
+.mode-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+.mode-row .length-toggle { margin-bottom: 0; }
+.match-count { align-self: center; margin-left: auto; }
+.coop-toggle a.active {
+  background: var(--cyan);
+  box-shadow: 0 0 14px rgba(62, 230, 255, 0.35);
+}
+
 /* ── Toolbar ─────────────────────────────────────────────────────────── */
 
 .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 24px; }
@@ -279,6 +287,16 @@ input:focus, select:focus, input:hover, select:hover {
 .col-art { width: 108px; padding-right: 0 !important; line-height: 0; }
 .col-art img { width: 92px; height: 43px; object-fit: cover; display: block; border: 1px solid var(--line); }
 .rank-table tbody tr:hover .col-art img { border-color: var(--cyan); }
+.coop-tag {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 10px;
+  color: var(--cyan);
+  border: 1px solid rgba(62, 230, 255, 0.5);
+  padding: 0 5px;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
 .played-tag {
   display: inline-block;
   margin-left: 8px;

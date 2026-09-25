@@ -61,12 +61,23 @@
 </section>
 {% else %}
 
+{% set coop_arg = 1 if coop else None %}
+<div class="mode-row">
 <nav class="length-toggle" aria-label="Session length">
   {% for key, (label, lo, hi) in lengths.items() %}
-  <a href="{{ url_for('index', top=top_n, length=key) }}" class="{{ 'active' if key == length }}"
+  <a href="{{ url_for('index', top=top_n, length=key, coop=coop_arg) }}" class="{{ 'active' if key == length }}"
      {% if key == length %}aria-current="page"{% endif %}>{{ label }}</a>
   {% endfor %}
 </nav>
+<nav class="length-toggle coop-toggle" aria-label="Co-op">
+  <a href="{{ url_for('index', top=top_n, length=length, coop=None if coop else 1) }}" class="{{ 'active' if coop }}"
+     aria-pressed="{{ 'true' if coop else 'false' }}"
+     title="Games two can play on one copy: split screen, or Remote Play Together">&#9654;&#9654; 2P Co-op</a>
+</nav>
+{% if total_games %}
+<span class="stat match-count" aria-live="polite"><b>{{ ranked_count }}</b> {{ 'co-op ' if coop }}game{{ '' if ranked_count == 1 else 's' }}{% if length != 'any' %} &middot; {{ lengths[length][0] }}{% endif %}</span>
+{% endif %}
+</div>
 
 <div class="toolbar">
   <form class="toolbar-form" action="{{ url_for('index') }}" method="get">
@@ -78,6 +89,7 @@
       </select>
     </label>
     <input type="hidden" name="length" value="{{ length }}">
+    {% if coop %}<input type="hidden" name="coop" value="1">{% endif %}
     <button type="submit" name="pick" value="1" class="primary-btn" {{ 'disabled' if not top }}>&#9654; Pick one for me</button>
   </form>
   <form action="{{ url_for('refresh') }}" method="post">
@@ -93,16 +105,17 @@
   </a>
   {% endif %}
   <div class="pick-body">
-  <p class="eyebrow">&#9733; player 1 // next quest &#9733;</p>
+  <p class="eyebrow">&#9733; {{ 'player 1 + 2' if coop else 'player 1' }} // next quest &#9733;</p>
   <h2><a href="https://store.steampowered.com/app/{{ pick.appid }}" target="_blank" rel="noopener">{{ pick.name }}</a></h2>
   <p class="pick-meta">
     <span class="{{ pick.pct_class }}">{{ pick.pct }}%</span> {{ pick.label }}
     &middot; {{ '%.1f h'|format(pick.hours) if pick.hours else 'length unknown' }}
     {% if pick.played_minutes %}&middot; you played {{ pick.played_minutes }}m{% endif %}
+    {% if coop %}&middot; {{ pick.coop_modes|join(' / ') }}{% endif %}
   </p>
   <div class="pick-actions">
     <a class="primary-btn" href="steam://install/{{ pick.appid }}">Install in Steam</a>
-    <a class="secondary-btn" href="{{ url_for('index', top=top_n, length=length, pick=1) }}">Pick again</a>
+    <a class="secondary-btn" href="{{ url_for('index', top=top_n, length=length, coop=coop_arg, pick=1) }}">Pick again</a>
   </div>
   </div>
 </section>
@@ -130,6 +143,7 @@
       </td>
       <td class="col-name">
         <a href="https://store.steampowered.com/app/{{ game.appid }}" target="_blank" rel="noopener">{{ game.name }}</a>
+        {% if coop %}{% for mode in game.coop_modes %}<span class="coop-tag">{{ mode }}</span>{% endfor %}{% endif %}
         {% if game.played_minutes %}<span class="played-tag" title="You've played {{ game.played_minutes }} minutes">{{ game.played_minutes }}m played</span>{% endif %}
       </td>
       <td class="col-reviews">
@@ -142,6 +156,7 @@
         <form action="{{ url_for('hide_game', appid=game.appid) }}" method="post">
           <input type="hidden" name="top" value="{{ top_n }}">
           <input type="hidden" name="length" value="{{ length }}">
+          {% if coop %}<input type="hidden" name="coop" value="1">{% endif %}
           <button type="submit" class="ghost-btn" title="Hide {{ game.name }}" aria-label="Hide {{ game.name }}">&times;</button>
         </form>
       </td>
@@ -150,7 +165,8 @@
   </tbody>
 </table>
 <p class="footnote">
-  Showing {{ top|length }} of {{ ranked_count }} ranked games.
+  Showing {{ top|length }} of {{ ranked_count }} ranked {{ 'co-op ' if coop }}games.
+  {% if coop %}Co-op = split-screen co-op, or co-op with Remote Play Together (the second player streams it, no second copy needed).{% endif %}
   {% if length == 'any' %}
   Score = review% &divide; (1 + ln(hours + 1)), with anything under 1h counted as 1h &mdash; short, great games float up.
   {% else %}
@@ -160,7 +176,9 @@
 </p>
 {% elif not status.running %}
 <section class="empty-state">
-  {% if total_games and length != 'any' %}
+  {% if total_games and coop %}
+  <p>No unplayed co-op games{% if length != 'any' %} in the <strong>{{ lengths[length][0] }}</strong> range{% endif %}. Try another length, or turn off <strong>2P Co-op</strong>.</p>
+  {% elif total_games and length != 'any' %}
   <p>Nothing in the <strong>{{ lengths[length][0] }}</strong> range yet. Try another length, or refresh to pick up new games.</p>
   {% elif total_games %}
   <p>No ranked games yet. Hit <strong>Refresh</strong>, or loosen the filters / minimum review count below.</p>

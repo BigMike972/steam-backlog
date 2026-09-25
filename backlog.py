@@ -99,6 +99,19 @@ def is_filtered(cats, filters):
     return any(f in cat for f in filters for cat in cats)
 
 
+def coop_modes(cats):
+    """Ways to play a game together using only the one copy we own: on one
+    screen, or streamed to a second machine with Remote Play Together.
+    Remote Play Together alone doesn't count -- it's also on versus-only
+    games -- so it needs a co-op category alongside it."""
+    modes = []
+    if "Shared/Split Screen Co-op" in cats:
+        modes.append("couch")
+    if "Remote Play Together" in cats and any("Co-op" in c for c in cats):
+        modes.append("remote play")
+    return modes
+
+
 # ── Steam API ───────────────────────────────────────────────────────────────
 
 def _get_json(url, params, timeout=10):
@@ -312,12 +325,14 @@ def in_length(hours, length):
     return (lo is None or hours >= lo) and (hi is None or hours < hi)
 
 
-def ranked_games(conn, length="any"):
+def ranked_games(conn, length="any", coop=False):
     """Every unplayed (or barely played), unhidden, unfiltered game with
     enough reviews, best first.
 
     "any" ranks by the review%/length score. A length bucket already fixes
     roughly how long you want to play, so within it games rank by review %.
+    coop keeps only games two people can play together without buying a
+    second copy (see coop_modes).
     """
     filters = get_filters(conn)
     rows = conn.execute(
@@ -343,6 +358,9 @@ def ranked_games(conn, length="any"):
             continue
         if is_filtered(cats, filters) or not in_length(row["hours"], length):
             continue
+        modes = coop_modes(cats)
+        if coop and not modes:
+            continue
         scored.append(
             {
                 "appid": row["appid"],
@@ -355,6 +373,7 @@ def ranked_games(conn, length="any"):
                 "hours": row["hours"],
                 "header_image": row["header_image"],
                 "score": compute_score(row["pct"], row["hours"]),
+                "coop_modes": modes,
             }
         )
     if length == "any":
